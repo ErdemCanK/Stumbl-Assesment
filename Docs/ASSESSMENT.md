@@ -15,18 +15,20 @@ You are building the **frontend only**. No authentication, no database, no backe
 
 ---
 
-## 📦 Required Stack
+## 📦 Stack (Pre-configured for You)
 
 | Layer | Technology | Notes |
 |---|---|---|
-| Framework | **Next.js 15+** | App Router (not Pages Router) |
+| Framework | **Next.js 16** | App Router + Turbopack — already bootstrapped |
 | Language | **TypeScript** | strict mode enabled |
-| Styling | **Tailwind CSS** | v4 preferred |
-| Components | **shadcn/ui** | install only what you need |
-| Data | **Mock / in-memory** | JSON file or `.ts` array |
-| Package Manager | npm / pnpm / bun | your choice |
+| Styling | **Tailwind CSS v4** | already configured |
+| Components | **shadcn/ui** | initialised; `button`, `card`, `badge`, `input`, `tabs`, `avatar`, `separator`, `skeleton` pre-installed |
+| Data | **Mock / in-memory** | starter file at `src/lib/data/signals.ts` — extend to 12+ |
+| Package Manager | **npm** | lockfile committed |
 
 You are **not allowed** to use a UI kit other than shadcn/ui (no MUI, Chakra, Ant, etc.). Tailwind utility classes + shadcn primitives only.
+
+Need another shadcn component? `npx shadcn@latest add <name>`.
 
 ---
 
