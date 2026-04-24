@@ -7,11 +7,13 @@
 
 ## 🎯 What You're Building
 
-A working clone of Stumbl's **Active Signals** page.
+The **Active Signals** page of Stumbl — but not as a scrollable feed.
 
-In Stumbl, a *signal* is a short post where a user either asks for support, offers support, or shares a general update. The **Active Signals** page is the public feed where users browse signals from others.
+It is a **swipeable card deck**, one signal at a time, where the user decides what to do with each signal (**Pass**, **Match**, or **Network / Refer**). Think Tinder-style interaction, not Twitter-style feed.
 
-You are building the **frontend only**. No authentication, no database, no backend API. Use a mock dataset, but the page should feel and behave like a real product — **no dead buttons, no broken filters, no "TODO" placeholders in the UI**.
+A visual reference of the finished card is in [`Docs/screenshots/active-signal-card.png`](./screenshots/active-signal-card.png). Look at it before you start.
+
+You are building the **frontend only**. No authentication, no backend, no persistence. Use the mock dataset, but every interaction should feel real — **no dead buttons, no broken swipes, no placeholder TODOs left in the UI**.
 
 ---
 
@@ -28,119 +30,192 @@ You are building the **frontend only**. No authentication, no database, no backe
 
 You are **not allowed** to use a UI kit other than shadcn/ui (no MUI, Chakra, Ant, etc.). Tailwind utility classes + shadcn primitives only.
 
-Need another shadcn component? `npx shadcn@latest add <name>`.
+Need another shadcn component (`dialog`, `select`, `textarea`, etc.)? Run:
+
+```bash
+npx shadcn@latest add <name>
+```
 
 ---
 
 ## 🧩 Data Model
 
-Use this shape exactly. Do not simplify or rename fields.
+Use the shape in [`src/types/signal.ts`](../src/types/signal.ts) exactly. Do not rename fields.
 
 ```ts
-export type SignalType = 'SUPPORT_NEEDED' | 'SUPPORT_OFFERED' | 'GENERAL'
-export type Visibility = 'PUBLIC' | 'PRIVATE' | 'ORGANISATION_ONLY'
-
-export interface SignalAuthor {
-  id: string
-  displayName: string
-  avatarUrl?: string
-  role: 'SERVICE_USER' | 'PRACTITIONER' | 'STUDENT' | 'SUPPORTER'
-}
-
-export interface Signal {
-  id: string
-  title: string
-  description: string
-  type: SignalType
-  visibility: Visibility
-  author: SignalAuthor
-  location: string          // e.g. "Manchester, UK"
-  interests: string[]       // e.g. ["housing", "mental-health"]
-  createdAt: string         // ISO 8601
-}
+type SignalType     = 'SUPPORT_NEEDED' | 'SUPPORT_OFFERED' | 'GENERAL'
+type Visibility     = 'PUBLIC' | 'PRIVATE' | 'ORGANISATION_ONLY'
+type SignalCategory = 'Awareness' | 'Support' | 'Opportunity' | 'Alert' | 'Question'
+type SignalPriority = 'HIGH' | 'MEDIUM' | 'LOW'
+type AuthorRole     = 'SERVICE_USER' | 'PRACTITIONER' | 'STUDENT' | 'SUPPORTER'
+type SwipeAction    = 'PASS' | 'MATCH' | 'NETWORK_REFER'
 ```
 
-Create **at least 12 mock signals** with genuine variety:
+Starter data lives in [`src/lib/data/signals.ts`](../src/lib/data/signals.ts). Extend:
 
-- All three signal types represented
-- Multiple locations (UK districts/cities)
-- Varied interest tags (at least 8 unique tags across the dataset)
-- A mix of author roles
-- `createdAt` spread across the last 30 days
+- `signals` → at least **12 varied signals** (all 3 `SignalType`s, all 3 priorities, at least 4 categories, varied locations, mix of verified/unverified authors)
+- `referralContacts` → at least **8 contacts** across practitioner and supporter roles
 
 ---
 
-## ✅ Core Requirements (Must Have)
+## 🃏 The Signal Card (Must Match Screenshot)
 
-### 1. Route
-- Path: `/active-signals`
-- Renders a feed of signal cards
-- Page title and meaningful `<meta>` description
+Refer to [`Docs/screenshots/active-signal-card.png`](./screenshots/active-signal-card.png) for the visual target. The card contains, from top to bottom:
 
-### 2. Signal Card
-Each card must display:
-- Title (truncate to 2 lines if long)
-- Description (truncate to 3 lines if long)
-- Type badge with colour coded by `SignalType`
-- Author display name + avatar (fallback to initials if no `avatarUrl`)
-- Location
-- Relative creation date (e.g. "2 days ago")
-- Interest tags as chips (show max 4, with a `+N` overflow indicator)
+### 1. Header row
+- `SIGNAL {currentIndex + 1} / {total}` counter (top-left, uppercase, small caps)
+- **Reset** button (top-right icon button) — resets the deck to the first card and clears all recorded decisions
+- Horizontal **progress bar** beneath the counter, filling left-to-right as the user progresses through the deck
 
-### 3. Filtering
-- Filter by signal type: All / `SUPPORT_NEEDED` / `SUPPORT_OFFERED` / `GENERAL`
-- Use tabs or segmented control (shadcn `Tabs` is fine)
-- URL should reflect the filter (e.g. `?type=SUPPORT_NEEDED`) so the state survives refresh
+### 2. Author section
+- Circular **avatar** (fallback to initials if `avatarUrl` is missing)
+- `author.displayName` + a small **verified tick** if `author.verified === true`
+- **Location** row with a pin icon + `signal.location`
+- **Date** row with a clock icon + `signal.createdAt` formatted as `DD/MM/YYYY`
+- On the same row (top-right of the card, opposite the avatar): **Category badge**
+  - Colour-coded per `SignalCategory`
+  - Includes a small lead icon (megaphone for Awareness, hand for Support, etc.)
 
-### 4. Search
-- Free-text search input
-- Searches across **title + description + interest tags**
-- Debounced (300ms) so it doesn't thrash on every keystroke
+### 3. Priority badge
+- Shown below the author block on the left side
+- Colour-coded:
+  - `HIGH` → orange/red with a warning triangle icon
+  - `MEDIUM` → amber
+  - `LOW` → neutral / grey
+- Label is capitalised (`High`, not `HIGH`)
 
-### 5. Empty State
-- When no signals match the current filter/search, show a friendly empty state with:
-  - An icon or illustration
-  - A helpful message
-  - A "Clear filters" button that resets everything
+### 4. Description
+- Full `signal.description` text
+- No truncation on the card — readable at any length
+- Preserve paragraph breaks if the source text has them
 
-### 6. Responsive Layout
-- Mobile-first
-- Test at 375px, 768px, and 1280px viewport widths
-- No horizontal scroll on any breakpoint
+### 5. Interest tag pills
+- Render `signal.interests` as rounded pills
+- Use shadcn `Badge` variant="secondary" or similar
 
-### 7. Git Hygiene
-- At least 3 meaningful commits
-- Clear, imperative commit messages (e.g. `add signal card component`, not `stuff`)
+### 6. Action bar (three circular buttons, centred)
+Left to right:
+
+| Button | Icon | Colour | Action |
+|---|---|---|---|
+| **Pass** | thumbs-down | red/pink | Dismiss the signal |
+| **Network / Refer** | share / people | purple | Open the referral modal (see below) |
+| **Match** | thumbs-up | green | Record a match |
+
+Each button has a text label under it. Buttons must have:
+- Visible focus ring (keyboard-accessible)
+- Hover state
+- Proper `aria-label`
+
+### 7. Footer hints (below the card)
+- `Swipe or tap buttons to take action`
+- Small line showing keyboard shortcuts:
+  - `← Pass`
+  - `→ Match`
+  - `↓ Network / Refer`
 
 ---
 
-## 🌟 Stretch Goals (Bonus)
+## 🖐 Interactions (All Must Work)
 
-Tackle these only after the core is complete and polished.
+### Swipe
+- **Swipe left** → PASS
+- **Swipe right** → MATCH
+- **Swipe down** → opens the Network/Refer modal
+- Use native pointer events, CSS transforms, or a library of your choice — pick something that works smoothly on both mouse and touch
+- While dragging, the card should:
+  - Follow the pointer
+  - Tilt slightly based on direction
+  - Show a directional hint colour overlay (green / red / purple tint)
+- On release:
+  - If passed the threshold → animate the card off-screen in that direction
+  - Otherwise → snap back to centre
 
-- **Location filter** — dropdown or free-text that narrows by `location`
-- **Sort control** — newest first (default) / oldest first
-- **Signal detail view** — clicking a card opens either a modal or `/signals/[id]` with the full signal
-- **Loading skeleton** — shown on initial render (simulate a short delay)
-- **Visibility UI** — hide `PRIVATE` signals from the feed; render a lock icon on `ORGANISATION_ONLY`
-- **Accessibility pass**
-  - Keyboard navigation through filters and cards
-  - Proper ARIA labels on interactive elements
-  - Focus-visible styles
-  - Passes Lighthouse a11y check (95+)
+### Tap
+- Each action button triggers the same state transition as the equivalent swipe
+- Buttons must work on mobile (no hover-only UI)
+
+### Keyboard
+- `ArrowLeft` → PASS
+- `ArrowRight` → MATCH
+- `ArrowDown` → Network/Refer modal
+- Focus behaviour: arrow keys work when the deck is focused; `Tab` cycles through the three buttons
+
+### Reset
+- The top-right reset button returns to `signal #1`, clears the decision log, and re-enables any consumed cards
+
+### End state
+- When all signals have been decided on, show a friendly "You're all caught up" state with a **Start over** button that calls the same reset handler
+
+---
+
+## 🔗 Network / Refer Modal
+
+Tapping Network/Refer (or swiping down) opens a modal. Use shadcn `Dialog` (install it if missing). The modal must contain:
+
+### Header
+- Title: `Refer this signal`
+- Subtitle: short line like `Send it to people in your network who can help.`
+
+### Body
+1. **Search input** — filters the contact list by `displayName` or `organisation` (debounced 200ms)
+2. **Contact list** — each row shows:
+   - Avatar / initials
+   - Display name + verified tick where applicable
+   - Role + organisation line
+   - A checkbox or toggle to select the contact
+3. **Selected count** visible somewhere (e.g., `3 selected`)
+4. **Note textarea** — optional free-text the user can send with the referral (max 280 chars, with a visible counter)
+
+### Footer
+- **Cancel** button → closes the modal, no state change
+- **Send referral** button (primary):
+  - Disabled when no contacts are selected
+  - On click: records the referral (`console.log` is fine — no real backend), closes the modal, advances the deck, and shows a toast / inline confirmation (e.g., `Referred to 3 people`)
+
+### Accessibility
+- Focus traps inside the modal
+- `Esc` closes
+- Labelled headings and form controls
+
+---
+
+## ✅ Core Requirements Checklist
+
+- [ ] Only one card visible at a time, matching the screenshot anatomy
+- [ ] All three actions work via **tap**, **swipe**, and **keyboard**
+- [ ] Counter + progress bar update correctly
+- [ ] Reset button works
+- [ ] All-caught-up empty state appears after the last card
+- [ ] Network/Refer modal works end-to-end (search, select, note, send)
+- [ ] At least **12 varied signals** and **8 referral contacts**
+- [ ] Fully responsive (test at 375px, 768px, 1280px)
+- [ ] `npm run build` passes with no TypeScript or lint errors
+- [ ] At least **3 meaningful git commits** on a `submission/<your-name>` branch
+
+---
+
+## 🌟 Stretch Goals
+
+Tackle only after the core is solid.
+
+- Record a **decision log** (in-memory) and show it on a `/active-signals/history` page
+- **Undo** last decision (arrow-up keyboard / button on the caught-up screen)
+- **Animations**: spring physics on the snap-back, subtle scale-in for the next card
+- Persist decisions to **localStorage** so a refresh resumes where you left off
+- Category / priority **filter** before entering the deck (e.g., only High priority)
+- Full **a11y** pass: keyboard-only navigation through modal, Lighthouse a11y ≥ 95
 
 ---
 
 ## 🚫 Out of Scope
 
-Do not spend time on these — we are not evaluating them:
-
-- Real authentication or login flow
-- Database, API, or server actions beyond what's needed for the page
-- Pagination or infinite scroll
-- Writing unit tests (integration/e2e neither)
-- Deployment to Vercel/Netlify (nice if done, not required)
-- Pixel-perfect design match to the real Stumbl app
+- Real authentication or login
+- Real backend / API / database
+- Pagination / infinite scroll (the deck is the whole interaction)
+- Unit or e2e tests
+- Production deployment
+- Pixel-perfect match to the screenshot — approximate is fine as long as the structure and interactions are right
 
 ---
 
@@ -148,55 +223,49 @@ Do not spend time on these — we are not evaluating them:
 
 | Area | Weight | What earns top marks |
 |---|---|---|
-| **AI Collaboration** | 30% | Specific prompts with context; verifies AI output against the brief; pushes back when AI is wrong; uses types to steer the AI |
-| **Code Quality** | 25% | Strict types, small focused components, sensible file layout, no dead code, no `any` without justification |
-| **Product Instinct** | 20% | Thoughtful empty/loading states, responsive on mobile, smooth interactions, reasonable a11y defaults |
-| **Problem Solving** | 15% | Reads error messages, forms a hypothesis, tests the hypothesis — does not retry the same broken command |
-| **Git Hygiene** | 10% | Commits tell a story; messages describe *why*, not just *what* |
+| **AI Collaboration** | 30% | Specific prompts with file paths and types; verifies AI output against the brief; pushes back when AI is wrong |
+| **Code Quality** | 25% | Strict types, small focused components, sensible file layout, no `any` without reason |
+| **Product Instinct** | 20% | Swipe feels good, modal works as a real user would expect, empty states, responsive |
+| **Problem Solving** | 15% | Reads errors, forms a hypothesis, tests it — does not repeat the same broken command |
+| **Git Hygiene** | 10% | Commits tell a story; messages describe *why* |
 
 ---
 
 ## 👀 What the Interviewers Will Watch For
 
-This is a live session. We will observe your process, not just the artefact.
-
 ### Green flags 🟢
-- You read the brief carefully before starting
-- You write **specific, self-contained prompts** to the AI (with file paths, types, exact requirements)
-- You open the browser and verify each feature after building it
-- You commit in small logical chunks with clear messages
-- You question AI suggestions that don't fit the brief
-- You say "I don't know, let me check" rather than guessing
+- Reads the brief and studies the screenshot before coding
+- Writes specific, self-contained prompts (file paths, types, exact requirements)
+- Opens the browser and tests each swipe/button after building it
+- Commits in small logical chunks
+- Questions AI suggestions that don't fit the spec
+- Says "I don't know, let me check" rather than guessing
 
 ### Red flags 🔴
 - Pasting AI output without reading it
-- Running the same failing command repeatedly with no change
+- Running the same failing command repeatedly
 - Never opening the browser to verify UI
-- `any` types sprayed everywhere
+- `any` types everywhere
 - Cannot explain code the AI generated
-- Ignoring TypeScript or lint errors
-- Copying the same block three times instead of extracting a component
+- Ignoring TypeScript / lint errors
 
 ---
 
-## 🗣 Debrief Questions (Asked at the End)
+## 🗣 Debrief Questions (After Coding)
 
-After you finish coding, expect to be asked:
-
-1. *"Walk me through the prompt you used when you got stuck on X. Would you write it differently now?"*
-2. *"Explain this block of code the AI generated — line by line."*
-3. *"How would you decide between two different AI suggestions?"*
-4. *"What would you add if you had another 2 hours?"*
-5. *"Where would you put authentication and real data fetching if this were going to production?"*
-6. *"What is one thing the AI got wrong during this session, and how did you catch it?"*
+1. *"Walk me through the prompt you used for the swipe animation. Would you write it differently now?"*
+2. *"Explain how you wired up the keyboard shortcuts — line by line."*
+3. *"What was the hardest thing the AI got wrong, and how did you catch it?"*
+4. *"Where would you put the referral API call if this were production?"*
+5. *"If you had another 2 hours, what would you add next?"*
 
 ---
 
 ## 📏 Ground Rules
 
-1. **Use AI freely.** Any tool. Any amount. We want to see you collaborate with it.
-2. **But own your code.** If we point at any line and ask what it does, you should be able to answer.
-3. **If the brief is ambiguous, decide and document.** Note your assumption in the project README.
+1. **Use AI freely.** Any tool. Any amount.
+2. **But own your code.** If we point at any line, you should be able to explain it.
+3. **If ambiguous, decide and document** your assumption in the project README.
 4. **Ship something working.** A smaller, fully-working feature beats a half-built ambitious one.
 5. **Keep commits small.** Commit when something works, not at the end.
 
@@ -204,10 +273,10 @@ After you finish coding, expect to be asked:
 
 ## 📬 Submission
 
-1. Push your final code to a branch in this repository (`submission/<your-name>`), **or** fork and push to your own repo and share the link.
-2. Make sure `README.md` reflects what you actually built — any deviation from this brief should be documented there.
-3. Ensure `npm install && npm run dev` works from a clean clone.
-4. Tag your final commit `final` if you want to signal that you're done.
+1. Push your final code to `submission/<your-name>`, **or** fork and share the link.
+2. Update `README.md` with any assumptions or deviations.
+3. Ensure `npm install && npm run dev` works on a clean clone.
+4. Tag your final commit `final` when you're done.
 
 ---
 
