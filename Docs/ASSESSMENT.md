@@ -30,7 +30,7 @@ At the end of the two days you also write a short **Development Report** describ
 | Language | **TypeScript** | strict mode |
 | Styling | **Tailwind CSS v4** | configured |
 | Components | **shadcn/ui** | `button`, `card`, `badge`, `input`, `tabs`, `avatar`, `separator`, `skeleton` pre-installed |
-| ORM / DB | **Prisma 6** + **PostgreSQL 16** | schema and seed script provided; DB runs in Docker |
+| ORM / DB | **Prisma 6** + **PostgreSQL 16** | DB runs in Docker; **you design the schema and write the seed script** |
 | API Docs | **next-swagger-doc** + **swagger-ui-react** | spec at `/api/docs`, UI at `/api-docs` |
 | Validation | **Zod** | installed; use it at every API boundary |
 | Package Manager | **npm** | lockfile committed |
@@ -48,7 +48,7 @@ npx shadcn@latest add <name>
 ## 🚀 Getting Started
 
 ```bash
-# 1. Install dependencies (runs `prisma generate` automatically)
+# 1. Install dependencies
 npm install
 
 # 2. Copy env file
@@ -57,18 +57,23 @@ cp .env.example .env
 # 3. Start Postgres in Docker
 npm run db:up
 
-# 4. Push the Prisma schema and seed fixtures
+# 4. Design your Prisma schema at `prisma/schema.prisma` (see below)
+#    and then push it to the DB
 npm run db:push
+
+# 5. Write `prisma/seed.ts` and run it
 npm run db:seed
 
-# 5. Start the dev server
+# 6. Start the dev server
 npm run dev
 ```
 
 Open:
 - http://localhost:3000/active-signals — the UI you are building
 - http://localhost:3000/api-docs — Swagger UI for the API you are building
-- http://localhost:3000/api/health — DB reachability check (example endpoint, already documented)
+- http://localhost:3000/api/health — example endpoint using `db.$queryRaw` (copy its documentation pattern)
+
+> **Note:** `src/lib/db.ts` imports `PrismaClient` from `@prisma/client`. Model accessors (`db.signal.findMany()`, etc.) only appear **after** you have written `prisma/schema.prisma` and run `npm run db:push` — that step triggers `prisma generate`, which regenerates the typed client. `$queryRaw` works on the stub client, which is why `/api/health` builds before you write a schema.
 
 Handy extras:
 
@@ -80,26 +85,39 @@ Handy extras:
 
 ---
 
-## 🧩 Data Model
+## 🧩 Data Model (you design this)
 
-The Prisma schema at [`prisma/schema.prisma`](../prisma/schema.prisma) is your source of truth. Do **not** rename existing fields; you may add new ones if you need them (migrate properly).
+The `prisma/` folder is intentionally empty. You write two files:
 
-Core models:
+1. **`prisma/schema.prisma`** — the schema
+2. **`prisma/seed.ts`** — the seed script (`tsx`-compatible, run via `npm run db:seed`)
 
-- `Author` — every signal and every referral contact belongs to an author
-- `Signal` — the object shown on the card
-- `Decision` — a user's `PASS` / `MATCH` / `NETWORK_REFER` action on a signal
-- `ReferralContact` — contacts the user can refer a signal to
-- `Referral` + `ReferralRecipient` — many-to-many record of who a signal was referred to, with an optional note
+Your schema must make every API endpoint in the next section implementable without gymnastics. At a minimum you will need to model:
 
-Seed data (via `npm run db:seed`):
-- 14 authors
-- 14 signals across all categories, types, and priorities
-- 8 referral contacts
+- **Signal** — title, description, `SignalType`, `SignalCategory`, `SignalPriority`, `Visibility`, location, interests, timestamps
+- **Author** — display name, role, verified flag, optional organisation + avatar; every signal has an author
+- **Decision** — a swipe action (`PASS` / `MATCH` / `NETWORK_REFER`) on a signal, by a stub user id, with a timestamp
+- **Referral** — a signal referred to one or more contacts, with an optional note
+- **Referral contact** — who the user can refer signals to (the relation between `Referral` and contacts is many-to-many)
+
+You decide cardinalities, optional vs required, cascade behaviour, enums vs strings, and indexes. The canonical business types are in [`src/types/signal.ts`](../src/types/signal.ts) — **treat them as the contract**, not as a copy-paste template.
+
+### Seed requirements
+
+The seed script must be **idempotent** (re-runnable without duplicates — reset cleanly or upsert) and produce:
+
+- ≥ **14 signals** — all three `SignalType`s, all three priorities, at least four categories, varied locations and authors
+- ≥ **14 authors** with a mix of roles and a mix of verified/unverified
+- ≥ **8 referral contacts** across practitioner and supporter roles
+- At least one signal matching the **Francis Molloy / HMP Sudbury** example from the reference screenshot
+
+Starter fixture text is available in [`src/lib/data/signals.ts`](../src/lib/data/signals.ts) if you want inspiration — reuse it or write your own.
 
 ---
 
 ## 🛠 Backend Requirements (Day 1 focus)
+
+Before you touch any endpoint: **design the Prisma schema**, push it, and run your seed script. Only then start building routes.
 
 Build and document the following endpoints. Every endpoint must:
 
@@ -186,7 +204,9 @@ Sections include:
 Two-day submission must tick **all** boxes:
 
 ### Backend
-- [ ] Docker Postgres running, schema pushed, seed data loaded
+- [ ] Docker Postgres running, your schema pushed, your seed data loaded
+- [ ] `prisma/schema.prisma` models every entity the endpoints need
+- [ ] `prisma/seed.ts` meets the seed requirements above and is idempotent
 - [ ] All 6 endpoints implemented, typed, validated, and documented
 - [ ] `/api-docs` renders correctly and every endpoint has a description, parameters, request body (where applicable), and response schema
 - [ ] Consistent error shape across endpoints

@@ -21,7 +21,7 @@ You will build a vertical slice of Stumbl's **Active Signals** feature:
 Prerequisites: **Node 20+**, **Docker Desktop** (or any Docker runtime), **git**.
 
 ```bash
-# 1. Install dependencies (also runs `prisma generate`)
+# 1. Install dependencies
 npm install
 
 # 2. Copy env file
@@ -30,13 +30,17 @@ cp .env.example .env
 # 3. Start Postgres in Docker
 npm run db:up
 
-# 4. Push schema + load seed data
+# 4. Design your Prisma schema (see prisma/README.md), then push it
 npm run db:push
+
+# 5. Write prisma/seed.ts, then run it
 npm run db:seed
 
-# 5. Start the dev server
+# 6. Start the dev server
 npm run dev
 ```
+
+> `src/lib/db.ts` exports a Prisma client singleton. Its typed model accessors (`db.signal.findMany()`) only become available **after** you write `prisma/schema.prisma` and run `npm run db:push` — that is what triggers `prisma generate`.
 
 Then open:
 
@@ -55,8 +59,8 @@ Then open:
 |---|---|
 | Next.js 16, App Router, Turbopack, TypeScript | ✅ |
 | Tailwind CSS v4 + shadcn/ui (8 components) | ✅ |
-| PostgreSQL 16 via `docker-compose.yml` | ✅ |
-| Prisma 6 — schema + client + seed script | ✅ |
+| PostgreSQL 16 via `docker-compose.yml` | ✅ container ready |
+| Prisma 6 installed + client singleton at `src/lib/db.ts` | ✅ — **you write `schema.prisma` + `seed.ts`** |
 | Zod + next-swagger-doc + swagger-ui-react | ✅ installed |
 | `/api-docs` UI wired to `/api/docs` | ✅ |
 | Example documented endpoint `GET /api/health` | ✅ pattern to copy |
@@ -91,8 +95,9 @@ Stumbl-Assesment/
 │   ├── DEVELOPMENT_REPORT.md      # Fill in at the end
 │   └── screenshots/
 ├── prisma/
-│   ├── schema.prisma              # Source of truth for data
-│   └── seed.ts                    # Seed script (npm run db:seed)
+│   ├── README.md                  # What you must build here
+│   ├── schema.prisma              # ← YOU write this
+│   └── seed.ts                    # ← YOU write this (npm run db:seed)
 ├── src/
 │   ├── app/
 │   │   ├── active-signals/        # Your main UI work goes here
@@ -119,6 +124,8 @@ Stumbl-Assesment/
 
 Full checklist in [`Docs/ASSESSMENT.md`](./Docs/ASSESSMENT.md). Headlines:
 
+- [ ] `prisma/schema.prisma` designed and pushed
+- [ ] `prisma/seed.ts` produces ≥ 14 signals + 14 authors + 8 referral contacts, idempotent
 - [ ] All 6 API endpoints implemented, Zod-validated, Swagger-documented
 - [ ] `/api-docs` renders every endpoint correctly
 - [ ] `/active-signals` fetches from the API (no hard-coded data)
