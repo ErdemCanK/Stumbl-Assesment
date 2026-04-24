@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: stumbl-assesment-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: stumbl
+      POSTGRES_PASSWORD: stumbl
+      POSTGRES_DB: stumbl
+    ports:
+      - "5432:5432"
+    volumes:
+      - stumbl_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stumbl -d stumbl"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  stumbl_pgdata:

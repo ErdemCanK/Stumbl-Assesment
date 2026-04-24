@@ -3,17 +3,22 @@
 > **Read this document in full before you start coding.**
 > Note any ambiguities and document the assumptions you make in your project README.
 
+This is a **take-home assessment**, scoped for roughly **two working days (~16 hours)**. You are free to split the time across calendar days.
+
 ---
 
 ## 🎯 What You're Building
 
-The **Active Signals** page of Stumbl — but not as a scrollable feed.
+A working vertical slice of Stumbl's **Active Signals** feature. Full stack:
 
-It is a **swipeable card deck**, one signal at a time, where the user decides what to do with each signal (**Pass**, **Match**, or **Network / Refer**). Think Tinder-style interaction, not Twitter-style feed.
+1. **Local PostgreSQL** holding the data
+2. **Next.js API routes** (Route Handlers) exposing typed, validated, documented endpoints
+3. **OpenAPI / Swagger** reference generated from the code
+4. **Swipeable card UI** at `/active-signals` that consumes the API end-to-end
 
 A visual reference of the finished card is in [`Docs/screenshots/active-signal-card.png`](./screenshots/active-signal-card.png). Look at it before you start.
 
-You are building the **frontend only**. No authentication, no backend, no persistence. Use the mock dataset, but every interaction should feel real — **no dead buttons, no broken swipes, no placeholder TODOs left in the UI**.
+At the end of the two days you also write a short **Development Report** describing how you worked with AI, which models and tools you used, and where you got stuck — template in [`Docs/DEVELOPMENT_REPORT.md`](./DEVELOPMENT_REPORT.md).
 
 ---
 
@@ -22,13 +27,15 @@ You are building the **frontend only**. No authentication, no backend, no persis
 | Layer | Technology | Notes |
 |---|---|---|
 | Framework | **Next.js 16** | App Router + Turbopack — already bootstrapped |
-| Language | **TypeScript** | strict mode enabled |
-| Styling | **Tailwind CSS v4** | already configured |
-| Components | **shadcn/ui** | initialised; `button`, `card`, `badge`, `input`, `tabs`, `avatar`, `separator`, `skeleton` pre-installed |
-| Data | **Mock / in-memory** | starter file at `src/lib/data/signals.ts` — extend to 12+ |
+| Language | **TypeScript** | strict mode |
+| Styling | **Tailwind CSS v4** | configured |
+| Components | **shadcn/ui** | `button`, `card`, `badge`, `input`, `tabs`, `avatar`, `separator`, `skeleton` pre-installed |
+| ORM / DB | **Prisma 6** + **PostgreSQL 16** | schema and seed script provided; DB runs in Docker |
+| API Docs | **next-swagger-doc** + **swagger-ui-react** | spec at `/api/docs`, UI at `/api-docs` |
+| Validation | **Zod** | installed; use it at every API boundary |
 | Package Manager | **npm** | lockfile committed |
 
-You are **not allowed** to use a UI kit other than shadcn/ui (no MUI, Chakra, Ant, etc.). Tailwind utility classes + shadcn primitives only.
+You are **not allowed** to swap out a core library (no Drizzle instead of Prisma, no MUI instead of shadcn, etc.). If you need an extra library, justify it in the Development Report.
 
 Need another shadcn component (`dialog`, `select`, `textarea`, etc.)? Run:
 
@@ -38,184 +45,165 @@ npx shadcn@latest add <name>
 
 ---
 
-## 🧩 Data Model
+## 🚀 Getting Started
 
-Use the shape in [`src/types/signal.ts`](../src/types/signal.ts) exactly. Do not rename fields.
+```bash
+# 1. Install dependencies (runs `prisma generate` automatically)
+npm install
 
-```ts
-type SignalType     = 'SUPPORT_NEEDED' | 'SUPPORT_OFFERED' | 'GENERAL'
-type Visibility     = 'PUBLIC' | 'PRIVATE' | 'ORGANISATION_ONLY'
-type SignalCategory = 'Awareness' | 'Support' | 'Opportunity' | 'Alert' | 'Question'
-type SignalPriority = 'HIGH' | 'MEDIUM' | 'LOW'
-type AuthorRole     = 'SERVICE_USER' | 'PRACTITIONER' | 'STUDENT' | 'SUPPORTER'
-type SwipeAction    = 'PASS' | 'MATCH' | 'NETWORK_REFER'
+# 2. Copy env file
+cp .env.example .env
+
+# 3. Start Postgres in Docker
+npm run db:up
+
+# 4. Push the Prisma schema and seed fixtures
+npm run db:push
+npm run db:seed
+
+# 5. Start the dev server
+npm run dev
 ```
 
-Starter data lives in [`src/lib/data/signals.ts`](../src/lib/data/signals.ts). Extend:
+Open:
+- http://localhost:3000/active-signals — the UI you are building
+- http://localhost:3000/api-docs — Swagger UI for the API you are building
+- http://localhost:3000/api/health — DB reachability check (example endpoint, already documented)
 
-- `signals` → at least **12 varied signals** (all 3 `SignalType`s, all 3 priorities, at least 4 categories, varied locations, mix of verified/unverified authors)
-- `referralContacts` → at least **8 contacts** across practitioner and supporter roles
+Handy extras:
 
----
-
-## 🃏 The Signal Card (Must Match Screenshot)
-
-Refer to [`Docs/screenshots/active-signal-card.png`](./screenshots/active-signal-card.png) for the visual target. The card contains, from top to bottom:
-
-### 1. Header row
-- `SIGNAL {currentIndex + 1} / {total}` counter (top-left, uppercase, small caps)
-- **Reset** button (top-right icon button) — resets the deck to the first card and clears all recorded decisions
-- Horizontal **progress bar** beneath the counter, filling left-to-right as the user progresses through the deck
-
-### 2. Author section
-- Circular **avatar** (fallback to initials if `avatarUrl` is missing)
-- `author.displayName` + a small **verified tick** if `author.verified === true`
-- **Location** row with a pin icon + `signal.location`
-- **Date** row with a clock icon + `signal.createdAt` formatted as `DD/MM/YYYY`
-- On the same row (top-right of the card, opposite the avatar): **Category badge**
-  - Colour-coded per `SignalCategory`
-  - Includes a small lead icon (megaphone for Awareness, hand for Support, etc.)
-
-### 3. Priority badge
-- Shown below the author block on the left side
-- Colour-coded:
-  - `HIGH` → orange/red with a warning triangle icon
-  - `MEDIUM` → amber
-  - `LOW` → neutral / grey
-- Label is capitalised (`High`, not `HIGH`)
-
-### 4. Description
-- Full `signal.description` text
-- No truncation on the card — readable at any length
-- Preserve paragraph breaks if the source text has them
-
-### 5. Interest tag pills
-- Render `signal.interests` as rounded pills
-- Use shadcn `Badge` variant="secondary" or similar
-
-### 6. Action bar (three circular buttons, centred)
-Left to right:
-
-| Button | Icon | Colour | Action |
-|---|---|---|---|
-| **Pass** | thumbs-down | red/pink | Dismiss the signal |
-| **Network / Refer** | share / people | purple | Open the referral modal (see below) |
-| **Match** | thumbs-up | green | Record a match |
-
-Each button has a text label under it. Buttons must have:
-- Visible focus ring (keyboard-accessible)
-- Hover state
-- Proper `aria-label`
-
-### 7. Footer hints (below the card)
-- `Swipe or tap buttons to take action`
-- Small line showing keyboard shortcuts:
-  - `← Pass`
-  - `→ Match`
-  - `↓ Network / Refer`
+| Script | What it does |
+|---|---|
+| `npm run db:studio` | Prisma Studio — GUI over your local DB |
+| `npm run db:reset` | Drop schema, reapply, re-seed |
+| `npm run db:down` | Stop the Postgres container |
 
 ---
 
-## 🖐 Interactions (All Must Work)
+## 🧩 Data Model
 
-### Swipe
-- **Swipe left** → PASS
-- **Swipe right** → MATCH
-- **Swipe down** → opens the Network/Refer modal
-- Use native pointer events, CSS transforms, or a library of your choice — pick something that works smoothly on both mouse and touch
-- While dragging, the card should:
-  - Follow the pointer
-  - Tilt slightly based on direction
-  - Show a directional hint colour overlay (green / red / purple tint)
-- On release:
-  - If passed the threshold → animate the card off-screen in that direction
-  - Otherwise → snap back to centre
+The Prisma schema at [`prisma/schema.prisma`](../prisma/schema.prisma) is your source of truth. Do **not** rename existing fields; you may add new ones if you need them (migrate properly).
 
-### Tap
-- Each action button triggers the same state transition as the equivalent swipe
-- Buttons must work on mobile (no hover-only UI)
+Core models:
 
-### Keyboard
-- `ArrowLeft` → PASS
-- `ArrowRight` → MATCH
-- `ArrowDown` → Network/Refer modal
-- Focus behaviour: arrow keys work when the deck is focused; `Tab` cycles through the three buttons
+- `Author` — every signal and every referral contact belongs to an author
+- `Signal` — the object shown on the card
+- `Decision` — a user's `PASS` / `MATCH` / `NETWORK_REFER` action on a signal
+- `ReferralContact` — contacts the user can refer a signal to
+- `Referral` + `ReferralRecipient` — many-to-many record of who a signal was referred to, with an optional note
 
-### Reset
-- The top-right reset button returns to `signal #1`, clears the decision log, and re-enables any consumed cards
-
-### End state
-- When all signals have been decided on, show a friendly "You're all caught up" state with a **Start over** button that calls the same reset handler
+Seed data (via `npm run db:seed`):
+- 14 authors
+- 14 signals across all categories, types, and priorities
+- 8 referral contacts
 
 ---
 
-## 🔗 Network / Refer Modal
+## 🛠 Backend Requirements (Day 1 focus)
 
-Tapping Network/Refer (or swiping down) opens a modal. Use shadcn `Dialog` (install it if missing). The modal must contain:
+Build and document the following endpoints. Every endpoint must:
 
-### Header
-- Title: `Refer this signal`
-- Subtitle: short line like `Send it to people in your network who can help.`
+1. Be typed at the boundary with **Zod** (input validation returning `400` with a readable error on failure)
+2. Query Postgres through the **Prisma client** exported from `src/lib/db.ts`
+3. Be documented with a `@swagger` JSDoc block (copy the pattern from `src/app/api/health/route.ts`)
+4. Return JSON with a consistent error shape: `{ error: string, details?: unknown }`
 
-### Body
-1. **Search input** — filters the contact list by `displayName` or `organisation` (debounced 200ms)
-2. **Contact list** — each row shows:
-   - Avatar / initials
-   - Display name + verified tick where applicable
-   - Role + organisation line
-   - A checkbox or toggle to select the contact
-3. **Selected count** visible somewhere (e.g., `3 selected`)
-4. **Note textarea** — optional free-text the user can send with the referral (max 280 chars, with a visible counter)
+| Method | Path | Behaviour |
+|---|---|---|
+| `GET` | `/api/signals` | List signals. Support query params `?type`, `?category`, `?priority`, `?q` (free-text over title + description). |
+| `GET` | `/api/signals/:id` | Return a single signal with its author inlined. `404` if not found. |
+| `POST` | `/api/signals/:id/decisions` | Record a decision. Body: `{ action: 'PASS' \| 'MATCH' \| 'NETWORK_REFER' }`. Uses `SEED_USER_ID` from env as `userId`. |
+| `GET` | `/api/decisions` | List the authenticated-stub user's decisions, most recent first. |
+| `GET` | `/api/referral-contacts` | List contacts, optional `?q` search filter. |
+| `POST` | `/api/referrals` | Body: `{ signalId, contactIds: string[], note?: string }`. Creates a `Referral` + `ReferralRecipient` rows. |
 
-### Footer
-- **Cancel** button → closes the modal, no state change
-- **Send referral** button (primary):
-  - Disabled when no contacts are selected
-  - On click: records the referral (`console.log` is fine — no real backend), closes the modal, advances the deck, and shows a toast / inline confirmation (e.g., `Referred to 3 people`)
-
-### Accessibility
-- Focus traps inside the modal
-- `Esc` closes
-- Labelled headings and form controls
+Nice-to-haves inside the backend:
+- **Pagination** on `/api/signals` (`?cursor`, `?limit`)
+- **Rate-limit** on `/api/decisions` (simple in-memory is fine)
+- Shared **Zod schemas** re-exported for client use (`src/lib/validations/`)
 
 ---
 
-## ✅ Core Requirements Checklist
+## 🃏 Frontend Requirements (Day 2 focus)
 
-- [ ] Only one card visible at a time, matching the screenshot anatomy
-- [ ] All three actions work via **tap**, **swipe**, and **keyboard**
-- [ ] Counter + progress bar update correctly
-- [ ] Reset button works
-- [ ] All-caught-up empty state appears after the last card
-- [ ] Network/Refer modal works end-to-end (search, select, note, send)
-- [ ] At least **12 varied signals** and **8 referral contacts**
-- [ ] Fully responsive (test at 375px, 768px, 1280px)
-- [ ] `npm run build` passes with no TypeScript or lint errors
-- [ ] At least **3 meaningful git commits** on a `submission/<your-name>` branch
+Refer to [`Docs/screenshots/active-signal-card.png`](./screenshots/active-signal-card.png) for the visual target.
+
+### Card anatomy
+- Header row: `SIGNAL {index+1} / {total}` counter + horizontal progress bar + reset icon button
+- Author block: avatar (initials fallback), display name + verified tick, location row (pin icon), date row (clock icon), category badge top-right (colour-coded per `SignalCategory`)
+- Priority badge under author (`HIGH` orange/warning, `MEDIUM` amber, `LOW` neutral)
+- Full description (no truncation)
+- Interest tag pills
+- Action bar: **Pass** (red, thumbs-down), **Network / Refer** (purple, share), **Match** (green, thumbs-up) — each with an `aria-label` and visible focus ring
+- Footer: `Swipe or tap buttons to take action` + keyboard hints (`← Pass • → Match • ↓ Network / Refer`)
+
+### Interactions (all three must work)
+- **Swipe**: left → PASS, right → MATCH, down → opens Refer modal. Card follows the pointer, tilts, tints directionally, and either flies off-screen past a threshold or snaps back.
+- **Tap** the buttons produces the same state transitions.
+- **Keyboard**: `ArrowLeft`, `ArrowRight`, `ArrowDown`.
+
+Every `PASS` / `MATCH` must `POST /api/signals/:id/decisions` — reflect success/failure with a toast or inline state.
+
+### Reset / End state
+- Reset button returns to card 1 and clears local deck state (not DB decisions — those are a log)
+- When the deck is exhausted, show a "You're all caught up" state with **Start over**
+
+### Network / Refer modal
+Use shadcn `Dialog`. Must have:
+- Title + subtitle
+- Debounced search input (200ms) filtering `/api/referral-contacts`
+- Contact list with selectable rows (checkbox), avatar, name, role + organisation
+- Selected count indicator
+- Optional note textarea (max 280 chars, live counter)
+- **Cancel** (no mutation) and **Send referral** (disabled if no contacts selected)
+- On send: `POST /api/referrals`, close modal, advance the deck, show confirmation toast
+- Focus trap + `Esc` to close
+
+### UX hygiene
+- Proper **loading** (skeleton) and **error** states for every fetch
+- **Responsive** at 375px, 768px, 1280px
+- Focus-visible styles, keyboard navigation, labelled controls
 
 ---
 
-## 🌟 Stretch Goals
+## 📝 Development Report (required)
 
-Tackle only after the core is solid.
+Fill in [`Docs/DEVELOPMENT_REPORT.md`](./DEVELOPMENT_REPORT.md). It is short but we read it carefully — it's how we understand your process.
 
-- Record a **decision log** (in-memory) and show it on a `/active-signals/history` page
-- **Undo** last decision (arrow-up keyboard / button on the caught-up screen)
-- **Animations**: spring physics on the snap-back, subtle scale-in for the next card
-- Persist decisions to **localStorage** so a refresh resumes where you left off
-- Category / priority **filter** before entering the deck (e.g., only High priority)
-- Full **a11y** pass: keyboard-only navigation through modal, Lighthouse a11y ≥ 95
+Sections include:
+- Tools and AI models used (with why)
+- The part you struggled with most
+- The best prompt you wrote (copy-pasted) and why you were proud of it
+- Where the AI was most wrong
+- What you would do differently with more time
+
+**We weight this heavily.** Half-hearted answers drop your score.
 
 ---
 
-## 🚫 Out of Scope
+## ✅ Definition of Done
 
-- Real authentication or login
-- Real backend / API / database
-- Pagination / infinite scroll (the deck is the whole interaction)
-- Unit or e2e tests
-- Production deployment
-- Pixel-perfect match to the screenshot — approximate is fine as long as the structure and interactions are right
+Two-day submission must tick **all** boxes:
+
+### Backend
+- [ ] Docker Postgres running, schema pushed, seed data loaded
+- [ ] All 6 endpoints implemented, typed, validated, and documented
+- [ ] `/api-docs` renders correctly and every endpoint has a description, parameters, request body (where applicable), and response schema
+- [ ] Consistent error shape across endpoints
+- [ ] `npm run build` passes
+
+### Frontend
+- [ ] `/active-signals` fetches from the API (no more hard-coded data)
+- [ ] Swipe, tap, and keyboard interactions all work
+- [ ] Network / Refer modal works end-to-end with search, selection, and note
+- [ ] Loading + error states everywhere
+- [ ] Responsive at 375 / 768 / 1280px
+- [ ] No `any` types without a comment
+
+### Process
+- [ ] At least **6 meaningful git commits** on a `submission/<your-name>` branch
+- [ ] `README.md` updated with any assumptions / deviations
+- [ ] `Docs/DEVELOPMENT_REPORT.md` filled in
 
 ---
 
@@ -223,60 +211,51 @@ Tackle only after the core is solid.
 
 | Area | Weight | What earns top marks |
 |---|---|---|
-| **AI Collaboration** | 30% | Specific prompts with file paths and types; verifies AI output against the brief; pushes back when AI is wrong |
-| **Code Quality** | 25% | Strict types, small focused components, sensible file layout, no `any` without reason |
-| **Product Instinct** | 20% | Swipe feels good, modal works as a real user would expect, empty states, responsive |
-| **Problem Solving** | 15% | Reads errors, forms a hypothesis, tests it — does not repeat the same broken command |
+| **AI Collaboration** (incl. Development Report) | 30% | Specific prompts, verification habits, honest and specific report |
+| **Backend Quality** | 25% | Clean API design, proper Zod validation, correct Prisma usage, accurate Swagger docs |
+| **Frontend Quality** | 20% | Swipe feels good, modal works, loading/error states present, a11y considered |
+| **Code Quality** | 15% | Strict types, small components, no dead code, sensible file layout |
 | **Git Hygiene** | 10% | Commits tell a story; messages describe *why* |
 
 ---
 
-## 👀 What the Interviewers Will Watch For
+## 🌟 Stretch Goals (only if core is solid)
 
-### Green flags 🟢
-- Reads the brief and studies the screenshot before coding
-- Writes specific, self-contained prompts (file paths, types, exact requirements)
-- Opens the browser and tests each swipe/button after building it
-- Commits in small logical chunks
-- Questions AI suggestions that don't fit the spec
-- Says "I don't know, let me check" rather than guessing
-
-### Red flags 🔴
-- Pasting AI output without reading it
-- Running the same failing command repeatedly
-- Never opening the browser to verify UI
-- `any` types everywhere
-- Cannot explain code the AI generated
-- Ignoring TypeScript / lint errors
+- **Undo** last decision (button on caught-up state + keyboard `ArrowUp`)
+- `/active-signals/history` page showing the decision log from `/api/decisions`
+- **Optimistic UI** on decisions + rollback on failure
+- Persist deck position to **localStorage**
+- Category / priority **filter** before entering the deck
+- Basic **request logging** middleware + error boundary
+- Full **a11y** pass (Lighthouse ≥ 95)
 
 ---
 
-## 🗣 Debrief Questions (After Coding)
+## 🚫 Out of Scope
 
-1. *"Walk me through the prompt you used for the swipe animation. Would you write it differently now?"*
-2. *"Explain how you wired up the keyboard shortcuts — line by line."*
-3. *"What was the hardest thing the AI got wrong, and how did you catch it?"*
-4. *"Where would you put the referral API call if this were production?"*
-5. *"If you had another 2 hours, what would you add next?"*
+- Real authentication / login (use `SEED_USER_ID` from `.env` as a stub)
+- Deployment to Vercel/Netlify
+- Unit / e2e tests (we value working software + the report more)
+- Pixel-perfect design match — approximate is fine
 
 ---
 
 ## 📏 Ground Rules
 
-1. **Use AI freely.** Any tool. Any amount.
-2. **But own your code.** If we point at any line, you should be able to explain it.
-3. **If ambiguous, decide and document** your assumption in the project README.
-4. **Ship something working.** A smaller, fully-working feature beats a half-built ambitious one.
-5. **Keep commits small.** Commit when something works, not at the end.
+1. **Use AI freely.** Any model. Any tool.
+2. **Own your code.** If we point at any line, you should explain it.
+3. **Document assumptions** in the project README.
+4. **Ship something working.** Smaller and working beats bigger and broken.
+5. **Keep commits small.** Commit when something works, not at the end of each day.
 
 ---
 
 ## 📬 Submission
 
-1. Push your final code to `submission/<your-name>`, **or** fork and share the link.
-2. Update `README.md` with any assumptions or deviations.
-3. Ensure `npm install && npm run dev` works on a clean clone.
-4. Tag your final commit `final` when you're done.
+1. Push your final code to `submission/<your-name>`.
+2. Ensure `npm install && npm run db:up && npm run db:push && npm run db:seed && npm run dev` works on a clean clone.
+3. Fill in `Docs/DEVELOPMENT_REPORT.md`.
+4. Tag your final commit `final` and let us know the branch is ready.
 
 ---
 
